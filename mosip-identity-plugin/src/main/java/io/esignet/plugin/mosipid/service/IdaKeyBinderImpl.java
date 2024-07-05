@@ -148,9 +148,10 @@ public class IdaKeyBinderImpl implements KeyBinder {
                             ErrorConstants.KEY_BINDING_FAILED : responseWrapper.getErrors().get(0).getErrorCode());
                 }
 
+                log.debug("Binding-Auth-status : {}", responseWrapper.getResponse().isBindingAuthStatus());
                 if(!responseWrapper.getResponse().isBindingAuthStatus()) {
-                    log.error("Binding-Auth-status : {}", responseWrapper.getResponse().isBindingAuthStatus());
-                    throw new KeyBindingException(ErrorConstants.BINDING_AUTH_FAILED);
+                    throw new KeyBindingException(CollectionUtils.isEmpty(responseWrapper.getErrors()) ?
+                            ErrorConstants.BINDING_AUTH_FAILED : responseWrapper.getErrors().get(0).getErrorCode());
                 }
 
                 KeyBindingResult keyBindingResult = new KeyBindingResult();
