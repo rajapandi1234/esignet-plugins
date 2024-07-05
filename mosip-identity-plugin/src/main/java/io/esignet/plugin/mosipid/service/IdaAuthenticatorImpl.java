@@ -5,8 +5,7 @@
  */
 package io.esignet.plugin.mosipid.service;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import io.mosip.esignet.api.dto.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -164,7 +163,7 @@ public class IdaAuthenticatorImpl implements Authenticator {
             } else {
                 idaKycExchangeRequest.setConsentObtained(List.of("sub"));
             }
-            idaKycExchangeRequest.setLocales(Arrays.asList(kycExchangeDto.getClaimsLocales()));
+            idaKycExchangeRequest.setLocales(helperService.convertLangCodesToISO3LanguageCodes(kycExchangeDto.getClaimsLocales()));
             idaKycExchangeRequest.setRespType(kycExchangeDto.getUserInfoResponseType()); //may be either JWT or JWE
             idaKycExchangeRequest.setIndividualId(kycExchangeDto.getIndividualId());
 

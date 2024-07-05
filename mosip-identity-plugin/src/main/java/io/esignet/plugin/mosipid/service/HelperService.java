@@ -51,9 +51,8 @@ import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -280,6 +279,21 @@ public class HelperService {
             log.error("Hashing failed", ex);
         }
         return value;
+    }
+
+    //Converts an array of two-letter language codes to their corresponding ISO 639-2/T language codes.
+    protected List<String> convertLangCodesToISO3LanguageCodes(String[] langCodes) {
+        if(langCodes == null || langCodes.length == 0)
+            return List.of();
+        return Arrays.stream(langCodes)
+                .map(langCode -> {
+                    try {
+                        return new Locale(langCode).getISO3Language();
+                    } catch (MissingResourceException ex) {}
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
 }
