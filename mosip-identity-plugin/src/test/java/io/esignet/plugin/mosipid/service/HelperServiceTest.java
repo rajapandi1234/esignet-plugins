@@ -1,12 +1,12 @@
-package io.mosip.esignet.plugin.mosipid.service;
+package io.esignet.plugin.mosipid.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.mosip.esignet.plugin.mosipid.dto.*;
+import io.esignet.plugin.mosipid.dto.*;
 import io.mosip.esignet.api.dto.AuthChallenge;
 import io.mosip.esignet.api.dto.SendOtpResult;
 import io.mosip.esignet.api.exception.SendOtpException;
-import io.mosip.esignet.plugin.mosipid.dto.Error;
+import io.esignet.plugin.mosipid.dto.Error;
 import io.mosip.kernel.crypto.jce.core.CryptoCore;
 import io.mosip.kernel.keymanagerservice.util.KeymanagerUtil;
 import io.mosip.kernel.signature.dto.JWTSignatureResponseDto;

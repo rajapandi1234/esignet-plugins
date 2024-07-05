@@ -1,4 +1,4 @@
-package io.mosip.esignet.plugin.mosipid.service;
+package io.esignet.plugin.mosipid.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mosip.esignet.api.dto.KeyBindingResult;
@@ -7,9 +7,9 @@ import io.mosip.esignet.api.dto.SendOtpResult;
 import io.mosip.esignet.api.exception.KeyBindingException;
 import io.mosip.esignet.api.exception.SendOtpException;
 import io.mosip.esignet.api.util.ErrorConstants;
-import io.mosip.esignet.plugin.mosipid.dto.IdaError;
-import io.mosip.esignet.plugin.mosipid.dto.IdaResponseWrapper;
-import io.mosip.esignet.plugin.mosipid.dto.KeyBindingResponse;
+import io.esignet.plugin.mosipid.dto.IdaError;
+import io.esignet.plugin.mosipid.dto.IdaResponseWrapper;
+import io.esignet.plugin.mosipid.dto.KeyBindingResponse;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

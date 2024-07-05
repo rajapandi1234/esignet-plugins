@@ -1,4 +1,4 @@
-package io.mosip.esignet.plugin.mosipid.helper;
+package io.esignet.plugin.mosipid.helper;
 
 import io.mosip.esignet.core.dto.OIDCTransaction;
 import org.junit.Test;

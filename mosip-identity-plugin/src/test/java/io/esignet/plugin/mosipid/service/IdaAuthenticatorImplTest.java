@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
-package io.mosip.esignet.plugin.mosipid.service;
+package io.esignet.plugin.mosipid.service;
 
 import static org.mockito.ArgumentMatchers.any;
 
@@ -11,10 +11,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import io.mosip.esignet.plugin.mosipid.dto.GetAllCertificatesResponse;
-import io.mosip.esignet.plugin.mosipid.dto.IdaKycAuthRequest;
-import io.mosip.esignet.plugin.mosipid.dto.IdaKycAuthResponse;
-import io.mosip.esignet.plugin.mosipid.dto.IdaKycExchangeResponse;
+import io.esignet.plugin.mosipid.dto.GetAllCertificatesResponse;
+import io.esignet.plugin.mosipid.dto.IdaKycAuthRequest;
+import io.esignet.plugin.mosipid.dto.IdaKycAuthResponse;
+import io.esignet.plugin.mosipid.dto.IdaKycExchangeResponse;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,8 +34,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import io.mosip.esignet.plugin.mosipid.dto.IdaResponseWrapper;
-import io.mosip.esignet.plugin.mosipid.helper.AuthTransactionHelper;
+import io.esignet.plugin.mosipid.dto.IdaResponseWrapper;
+import io.esignet.plugin.mosipid.helper.AuthTransactionHelper;
 import io.mosip.esignet.api.dto.AuthChallenge;
 import io.mosip.esignet.api.dto.KycAuthDto;
 import io.mosip.esignet.api.dto.KycAuthResult;

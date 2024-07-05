@@ -1,11 +1,11 @@
-package io.mosip.esignet.plugin.mosipid.service;
+package io.esignet.plugin.mosipid.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import foundation.identity.jsonld.JsonLDObject;
-import io.mosip.esignet.plugin.mosipid.dto.IdaResponseWrapper;
-import io.mosip.esignet.plugin.mosipid.dto.IdaVcExchangeRequest;
-import io.mosip.esignet.plugin.mosipid.dto.IdaVcExchangeResponse;
-import io.mosip.esignet.plugin.mosipid.helper.VCITransactionHelper;
+import io.esignet.plugin.mosipid.dto.IdaResponseWrapper;
+import io.esignet.plugin.mosipid.dto.IdaVcExchangeRequest;
+import io.esignet.plugin.mosipid.dto.IdaVcExchangeResponse;
+import io.esignet.plugin.mosipid.helper.VCITransactionHelper;
 import io.mosip.esignet.api.dto.VCRequestDto;
 import io.mosip.esignet.api.dto.VCResult;
 import io.mosip.esignet.core.constants.ErrorConstants;

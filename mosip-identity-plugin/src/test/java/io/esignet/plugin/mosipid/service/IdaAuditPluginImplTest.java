@@ -1,16 +1,16 @@
-package io.mosip.esignet.plugin.mosipid.service;
+package io.esignet.plugin.mosipid.service;
 
 import io.mosip.esignet.api.dto.AuditDTO;
 import io.mosip.esignet.api.util.Action;
 import io.mosip.esignet.api.util.ActionStatus;
-import io.mosip.esignet.plugin.mosipid.dto.AuditResponse;
+import io.esignet.plugin.mosipid.dto.AuditResponse;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.MockitoJUnitRunner;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.mosip.esignet.plugin.mosipid.helper.AuthTransactionHelper;
+import io.esignet.plugin.mosipid.helper.AuthTransactionHelper;
 import io.mosip.kernel.core.http.ResponseWrapper;
 import org.mockito.*;
 import org.springframework.core.ParameterizedTypeReference;
