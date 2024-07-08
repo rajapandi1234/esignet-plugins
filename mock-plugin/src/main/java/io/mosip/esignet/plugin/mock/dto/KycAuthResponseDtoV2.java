@@ -5,19 +5,14 @@
  */
 package io.mosip.esignet.plugin.mock.dto;
 
-
+import io.mosip.esignet.api.dto.claim.VerificationDetail;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
-public class KycAuthRequestDto {
+public class KycAuthResponseDtoV2 extends KycAuthResponseDto{
 
-    private String transactionId;
-    private String individualId;
-    private String otp;
-    private String pin;
-    private String biometrics;
-    private String kbi;
-    private List<String> tokens;
+    private Map<String,List<VerificationDetail>> claimMetaData;
 }

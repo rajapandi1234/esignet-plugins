@@ -5,19 +5,11 @@
  */
 package io.mosip.esignet.plugin.mock.dto;
 
-
 import lombok.Data;
 
-import java.util.List;
-
 @Data
-public class KycAuthRequestDto {
+public class ReCaptchaError {
 
-    private String transactionId;
-    private String individualId;
-    private String otp;
-    private String pin;
-    private String biometrics;
-    private String kbi;
-    private List<String> tokens;
+    private String errorCode;
+    private String message;
 }
