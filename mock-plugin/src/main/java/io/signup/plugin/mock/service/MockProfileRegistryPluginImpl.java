@@ -17,7 +17,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 
-@ConditionalOnProperty(value = "signup.integration.profile-registry-plugin", havingValue = "MockProfileRegistry")
+@ConditionalOnProperty(value = "mosip.signup.integration.profile-registry-plugin", havingValue = "MockProfileRegistryPluginImpl")
 @Slf4j
 @Component
 public class MockProfileRegistryPluginImpl implements ProfileRegistryPlugin {
