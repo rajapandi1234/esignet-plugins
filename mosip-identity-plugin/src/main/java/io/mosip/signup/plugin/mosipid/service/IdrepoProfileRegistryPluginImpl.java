@@ -14,7 +14,6 @@ import io.micrometer.core.annotation.Timed;
 import io.mosip.signup.plugin.mosipid.dto.*;
 import io.mosip.signup.plugin.mosipid.util.ErrorConstants;
 import io.mosip.signup.plugin.mosipid.util.ProfileCacheService;
-import io.signup.plugin.mosipid.dto.*;
 import io.mosip.kernel.core.util.HMACUtils2;
 import io.mosip.signup.api.dto.ProfileDto;
 import io.mosip.signup.api.dto.ProfileResult;

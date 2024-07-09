@@ -2,7 +2,6 @@ package io.mosip.esignet.plugin.mosipid.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.esignet.plugin.mosipid.dto.*;
 import io.mosip.esignet.api.dto.AuthChallenge;
 import io.mosip.esignet.api.dto.SendOtpResult;
 import io.mosip.esignet.api.exception.SendOtpException;
