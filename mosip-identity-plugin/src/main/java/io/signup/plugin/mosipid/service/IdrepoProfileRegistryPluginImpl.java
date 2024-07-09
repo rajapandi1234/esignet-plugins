@@ -8,7 +8,6 @@ package io.signup.plugin.mosipid.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.micrometer.core.annotation.Timed;
@@ -395,12 +394,13 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
                 .format(DateTimeFormatter.ofPattern(UTC_DATETIME_PATTERN));
     }
 
-    private void checkRegexValidator(JsonNode validator, JsonNode valueNode) {
-        String value = valueNode.get("value").textValue();
-        if (validator.get("type").textValue().equals("regex") &&
-                !value.matches(validator.get("validator").textValue())) {
-            log.error("Regex of {} does not match value of {}", validator.get("validator").textValue(), value);
+    private void validateValue(String keyName, SchemaFieldValidator validator, String value) {
+        if(value == null || value.isEmpty())
             throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
+
+        if( validator != null && "regex".equalsIgnoreCase(validator.getType()) && !value.matches(validator.getValidator()) ) {
+            log.error("Regex of {} does not match value of {}", validator.getValidator(), value);
+            throw new InvalidProfileException("invalid_".concat(keyName.toLowerCase()));
         }
     }
 
@@ -408,28 +408,45 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         while (input.hasNext()) {
             Map.Entry<String, JsonNode> entry = input.next();
             log.debug("validate field {} --> {}", entry.getKey(), entry.getValue());
-            JsonNode validateField = schemaFields.get(entry.getKey());
+            JsonNode schemaField = schemaFields.get(entry.getKey());
 
-            if (validateField == null) {
+            if (schemaField == null) {
                 log.error("No field found in the schema with this field name : {}", entry.getKey());
-                throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
+                throw new InvalidProfileException(ErrorConstants.UNKNOWN_FIELD);
             }
 
-            JsonNode validators = validateField.get("validators");
-            if (validators == null) continue;
+            if(!schemaField.hasNonNull("validators"))
+                continue;
 
-            JsonNode validator = validators.get(0);
-            if (entry.getValue().isTextual()) {
-                checkRegexValidator(validator, entry.getValue());
-            } else if (entry.getValue().isArray()) {
-                for (JsonNode valueNode: entry.getValue()) {
-                    JsonNode language = valueNode.get("language");
-                    JsonNode langCode = validator.get("langCode");
-                    if ((language == null) || (langCode != null && language.textValue().equals(langCode.textValue()))) {
-                        checkRegexValidator(validator, valueNode);
+            SchemaFieldValidator[] validators = objectMapper.convertValue(schemaField.get("validators"), SchemaFieldValidator[].class);
+            if(validators == null || validators.length == 0) continue;
+
+            String datatype = schemaField.get("type") == null ? schemaField.get("$ref").textValue() : schemaField.get("type").textValue();
+            switch (datatype) {
+                case "string" :
+                    validateValue(entry.getKey(), validators[0], entry.getValue().textValue());
+                    break;
+                case "#/definitions/simpleType":
+                    SimpleType[] values = objectMapper.convertValue(entry.getValue(), SimpleType[].class);
+                    Optional<SimpleType> mandatoryLangValue = Arrays.stream(values).filter( v -> mandatoryLanguages.contains(v.getLanguage())).findFirst();
+                    if(mandatoryLangValue.isEmpty())
+                        throw new InvalidProfileException(MANDATORY_LANGUAGE_MISSING);
+
+                    for(SimpleType value : values) {
+                        validateLanguage(value.getLanguage());
+                        Optional<SchemaFieldValidator> result = Arrays.stream(validators)
+                                .filter(v-> value.getLanguage().equals(v.getLangCode()) || v.getLangCode() == null).findFirst();
+                        result.ifPresent(schemaFieldValidator -> validateValue(entry.getKey(), schemaFieldValidator, value.getValue()));
                     }
-                }
+                    break;
+                default:
+                    log.error("Unhandled datatype found : {}", datatype);
             }
         }
+    }
+
+    private void validateLanguage(String language) {
+        if(!mandatoryLanguages.contains(language) && (optionalLanguages != null && !optionalLanguages.contains(language)))
+            throw new InvalidProfileException("invalid_language");
     }
 }
