@@ -8,7 +8,6 @@ package io.signup.plugin.mosipid.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.micrometer.core.annotation.Timed;
@@ -26,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -48,6 +48,7 @@ import static io.mosip.signup.api.util.ErrorConstants.SERVER_UNREACHABLE;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(value = "mosip.signup.integration.profile-registry-plugin", havingValue = "MOSIPProfileRegistryPluginImpl")
 public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
 
     private static final String ID_SCHEMA_VERSION_FIELD_ID = "IDSchemaVersion";
@@ -108,43 +109,6 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
     @Autowired
     private ProfileCacheService profileCacheService;
 
-    private void checkRegexValidator(JsonNode validator, JsonNode valueNode) {
-        String value = valueNode.get("value").textValue();
-        if (validator.get("type").textValue().equals("regex") &&
-                !value.matches(validator.get("validator").textValue())) {
-            log.error("Regex of {} does not match value of {}", validator.get("validator").textValue(), value);
-            throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
-        }
-    }
-
-    private void validateEntryFields(Iterator<Map.Entry<String, JsonNode>> itr, JsonNode fields) {
-        while (itr.hasNext()) {
-            Map.Entry<String, JsonNode> entry = itr.next();
-            log.info("TODO - Need to validate field {} >> {}", entry.getKey(), entry.getValue());
-            JsonNode validateField = fields.get(entry.getKey());
-
-            if (validateField == null) {
-                log.error("Null value found in key field {}", entry.getKey());
-                throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
-            }
-
-            JsonNode validators = validateField.get("validators");
-            if (validators == null) continue;
-
-            JsonNode validator = validators.get(0);
-            if (entry.getValue().getClass().equals(TextNode.class)) {
-                checkRegexValidator(validator, entry.getValue());
-            } else if (entry.getValue().getClass().equals(ArrayNode.class)) {
-                for (JsonNode valueNode: entry.getValue()) {
-                    JsonNode language = valueNode.get("language");
-                    JsonNode langCode = validator.get("langCode");
-                    if ((language == null) || (langCode != null && language.textValue().equals(langCode.textValue()))) {
-                        checkRegexValidator(validator, valueNode);
-                    }
-                }
-            }
-        }
-    }
 
     @Override
     public void validate(String action, ProfileDto profileDto) throws InvalidProfileException {
@@ -160,10 +124,11 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         // check if any required field is missing during the "create" action.
         JsonNode requiredFieldIds = schemaResponse.getParsedSchemaJson().at("/properties/identity/required");
         if (action.equals("CREATE")) {
-            for (JsonNode requiredFieldId : requiredFieldIds) {
-                if (inputJson.get(requiredFieldId.textValue()) == null) {
-                    log.error("Null value found in the required field of {}", requiredFieldId);
-                    throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
+            Iterator itr = requiredFieldIds.iterator();
+            while (itr.hasNext()) {
+                if (inputJson.get((String)itr.next()) == null) {
+                    log.error("Null value found in the required field of {}", requiredFieldIds);
+                    throw new InvalidProfileException(ErrorConstants.INVALID_INPUT); //TODO we should add exception message
                 }
             }
         }
@@ -427,5 +392,61 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         return ZonedDateTime
                 .now(ZoneOffset.UTC)
                 .format(DateTimeFormatter.ofPattern(UTC_DATETIME_PATTERN));
+    }
+
+    private void validateValue(String keyName, SchemaFieldValidator validator, String value) {
+        if(value == null || value.isEmpty())
+            throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
+
+        if( validator != null && "regex".equalsIgnoreCase(validator.getType()) && !value.matches(validator.getValidator()) ) {
+            log.error("Regex of {} does not match value of {}", validator.getValidator(), value);
+            throw new InvalidProfileException("invalid_".concat(keyName.toLowerCase()));
+        }
+    }
+
+    private void validateEntryFields(Iterator<Map.Entry<String, JsonNode>> input, JsonNode schemaFields) {
+        while (input.hasNext()) {
+            Map.Entry<String, JsonNode> entry = input.next();
+            log.debug("validate field {} --> {}", entry.getKey(), entry.getValue());
+            JsonNode schemaField = schemaFields.get(entry.getKey());
+
+            if (schemaField == null) {
+                log.error("No field found in the schema with this field name : {}", entry.getKey());
+                throw new InvalidProfileException(ErrorConstants.UNKNOWN_FIELD);
+            }
+
+            if(!schemaField.hasNonNull("validators"))
+                continue;
+
+            SchemaFieldValidator[] validators = objectMapper.convertValue(schemaField.get("validators"), SchemaFieldValidator[].class);
+            if(validators == null || validators.length == 0) continue;
+
+            String datatype = schemaField.get("type") == null ? schemaField.get("$ref").textValue() : schemaField.get("type").textValue();
+            switch (datatype) {
+                case "string" :
+                    validateValue(entry.getKey(), validators[0], entry.getValue().textValue());
+                    break;
+                case "#/definitions/simpleType":
+                    SimpleType[] values = objectMapper.convertValue(entry.getValue(), SimpleType[].class);
+                    Optional<SimpleType> mandatoryLangValue = Arrays.stream(values).filter( v -> mandatoryLanguages.contains(v.getLanguage())).findFirst();
+                    if(mandatoryLangValue.isEmpty())
+                        throw new InvalidProfileException(MANDATORY_LANGUAGE_MISSING);
+
+                    for(SimpleType value : values) {
+                        validateLanguage(value.getLanguage());
+                        Optional<SchemaFieldValidator> result = Arrays.stream(validators)
+                                .filter(v-> value.getLanguage().equals(v.getLangCode()) || v.getLangCode() == null).findFirst();
+                        result.ifPresent(schemaFieldValidator -> validateValue(entry.getKey(), schemaFieldValidator, value.getValue()));
+                    }
+                    break;
+                default:
+                    log.error("Unhandled datatype found : {}", datatype);
+            }
+        }
+    }
+
+    private void validateLanguage(String language) {
+        if(!mandatoryLanguages.contains(language) && (optionalLanguages != null && !optionalLanguages.contains(language)))
+            throw new InvalidProfileException("invalid_language");
     }
 }
