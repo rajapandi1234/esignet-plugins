@@ -8,7 +8,6 @@ package io.mosip.signup.plugin.mosipid.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.micrometer.core.annotation.Timed;
@@ -177,7 +176,6 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         //set UIN
         //((ObjectNode) inputJson).set("UIN", objectMapper.valueToTree(profileDto.getUniqueUserId()));
         ((ObjectNode) inputJson).set("UIN", objectMapper.valueToTree(profileDto.getIndividualId()));
-        ((ObjectNode) inputJson).set("selectedHandles", objectMapper.valueToTree(defaultSelectedHandles));
         //Build identity request
         IdentityRequest identityRequest = buildIdentityRequest(inputJson, true);
         identityRequest.setRegistrationId(requestId);
