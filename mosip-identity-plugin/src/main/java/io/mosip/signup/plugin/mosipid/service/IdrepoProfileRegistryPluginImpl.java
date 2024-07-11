@@ -125,9 +125,10 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         if (action.equals("CREATE")) {
             Iterator itr = requiredFieldIds.iterator();
             while (itr.hasNext()) {
-                if (inputJson.get((String)itr.next()) == null) {
-                    log.error("Null value found in the required field of {}", requiredFieldIds);
-                    throw new InvalidProfileException(ErrorConstants.INVALID_INPUT); //TODO we should add exception message
+                String fieldName = ((TextNode)itr.next()).textValue();
+                if (inputJson.get(fieldName) == null) {
+                    log.error("Null value found in the required field of {}, required: {}", fieldName, requiredFieldIds);
+                    throw new InvalidProfileException(fieldName.toLowerCase().concat("_required")); //TODO we should add exception message
                 }
             }
         }
@@ -406,7 +407,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
     private void validateEntryFields(Iterator<Map.Entry<String, JsonNode>> input, JsonNode schemaFields) {
         while (input.hasNext()) {
             Map.Entry<String, JsonNode> entry = input.next();
-            log.debug("validate field {} --> {}", entry.getKey(), entry.getValue());
+            log.debug("started to validate field {}", entry.getKey());
             JsonNode schemaField = schemaFields.get(entry.getKey());
 
             if (schemaField == null) {
@@ -434,7 +435,10 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
                     for(SimpleType value : values) {
                         validateLanguage(value.getLanguage());
                         Optional<SchemaFieldValidator> result = Arrays.stream(validators)
-                                .filter(v-> value.getLanguage().equals(v.getLangCode()) || v.getLangCode() == null).findFirst();
+                                .filter(v-> value.getLanguage().equals(v.getLangCode())).findFirst();
+                        if(result.isEmpty()) {
+                            result = Arrays.stream(validators).filter(v-> v.getLangCode() == null).findFirst();
+                        }
                         result.ifPresent(schemaFieldValidator -> validateValue(entry.getKey(), schemaFieldValidator, value.getValue()));
                     }
                     break;
