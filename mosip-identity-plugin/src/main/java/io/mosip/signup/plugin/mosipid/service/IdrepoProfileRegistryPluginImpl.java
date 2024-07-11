@@ -409,7 +409,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
     private void validateEntryFields(Iterator<Map.Entry<String, JsonNode>> input, JsonNode schemaFields) {
         while (input.hasNext()) {
             Map.Entry<String, JsonNode> entry = input.next();
-            log.debug("validate field {} --> {}", entry.getKey(), entry.getValue());
+            log.debug("started to validate field {}", entry.getKey());
             JsonNode schemaField = schemaFields.get(entry.getKey());
 
             if (schemaField == null) {
