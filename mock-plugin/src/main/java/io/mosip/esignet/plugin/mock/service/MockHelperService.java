@@ -158,7 +158,6 @@ public class MockHelperService {
             }
 
             //set signature header, body and invoke kyc auth endpoint
-            //TODO WE can use isClaimsMetadataRequired to decide on which version of kyc-auth to call
             String requestBody = objectMapper.writeValueAsString(kycAuthRequestDto);
             RequestEntity requestEntity = RequestEntity
                     .post(UriComponentsBuilder.fromUriString(kycAuthUrl).pathSegment(relyingPartyId, clientId).build().toUri())
