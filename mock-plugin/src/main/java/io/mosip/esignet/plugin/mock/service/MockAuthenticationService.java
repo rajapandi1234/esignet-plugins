@@ -6,17 +6,16 @@
 package io.mosip.esignet.plugin.mock.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.mosip.esignet.api.dto.claim.FilterCriteria;
+import io.mosip.esignet.api.dto.claim.FilterDateTime;
 import io.mosip.esignet.plugin.mock.dto.KycExchangeResponseDto;
 import io.mosip.esignet.api.dto.*;
-import io.mosip.esignet.api.dto.claim.VerificationFilter;
 import io.mosip.esignet.api.dto.claim.VerificationFilter;
 import io.mosip.esignet.api.exception.KycAuthException;
 import io.mosip.esignet.api.exception.KycExchangeException;
 import io.mosip.esignet.api.exception.SendOtpException;
 import io.mosip.esignet.api.spi.Authenticator;
 import io.mosip.esignet.api.util.ErrorConstants;
-import io.mosip.esignet.plugin.mock.dto.KycExchangeRequestDto;
-import io.mosip.esignet.plugin.mock.dto.KycExchangeResponseDto;
 import io.mosip.esignet.plugin.mock.dto.KycExchangeRequestDto;
 import io.mosip.esignet.plugin.mock.dto.VerifiedKycExchangeRequestDto;
 import io.mosip.kernel.core.http.ResponseWrapper;
@@ -214,34 +213,47 @@ public class MockAuthenticationService implements Authenticator {
         }
 
         //setting essential verified claims
-        Map<String, List<VerificationFilter>> acceptedVerifiedClaims = verifiedKycExchangeDto.getAcceptedVerifiedClaims();
-        //segregating claims based on trust framework
-        Map<String,List<String>> trustFrameworkClaimsMap = new HashMap<>();
-        for (String claim : acceptedVerifiedClaims.keySet()) {
-            List<VerificationFilter> verificationFilterList = acceptedVerifiedClaims.get(claim);
-            for(VerificationFilter verificationFilter: verificationFilterList){
-                String trustFramework = verificationFilter.getTrust_framework().getValue();
-                if(trustFrameworkClaimsMap.containsKey(trustFramework)){
-                    trustFrameworkClaimsMap.get(trustFramework).add(claim);
-                }else{
-                    trustFrameworkClaimsMap.put(trustFramework,new ArrayList<>(List.of(claim)));
+        Map<String,VerificationFilter> acceptedVerifiedClaims = verifiedKycExchangeDto.getAcceptedVerifiedClaims();
+        //Group claims by trust framework and capture time information
+        Map<String, List<Map.Entry<String, Integer>>> trustFrameWorkMap = new HashMap<>();
+        for (Map.Entry<String, VerificationFilter> entry : acceptedVerifiedClaims.entrySet()) {
+            String claimName = entry.getKey();
+            FilterCriteria trustFrameworkCriteria = entry.getValue().getTrust_framework();
+            FilterDateTime filterDateTime = entry.getValue().getTime();
+
+            int maxAge = filterDateTime != null ? filterDateTime.getMax_age() : 999; // Default value for maxAge if not set
+
+            if(!StringUtils.isEmpty(trustFrameworkCriteria.getValue())){
+                trustFrameWorkMap.computeIfAbsent(trustFrameworkCriteria.getValue(), k -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
+            } else if (trustFrameworkCriteria.getValues()!=null && !trustFrameworkCriteria.getValues().isEmpty()) {
+                for (String trustFramework : trustFrameworkCriteria.getValues()) {
+                    trustFrameWorkMap.computeIfAbsent(trustFramework, list -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
                 }
+            } else {
+                // Handle null trust_framework separately
+                trustFrameWorkMap.computeIfAbsent(null, list -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
             }
         }
-        List<Map<String,Object>> verifiedClaimsList = new ArrayList<>();
-        //set verified claims
-        for(String trustFramework : trustFrameworkClaimsMap.keySet()) {
-            Map<String,String> verification = new HashMap<>();
-            Map<String, String> claims= new HashMap<>();
+        // Constructing the verified_claims list
+        List<Map<String, Object>> verifiedClaimsList = new ArrayList<>();
+        for (Map.Entry<String, List<Map.Entry<String, Integer>>> group : trustFrameWorkMap.entrySet()) {
+            String trustFramework = group.getKey();
+            List<Map.Entry<String, Integer>> claimsWithMaxAge = group.getValue();
 
-            verification.put("trust_framework",trustFramework);
-            for(String claim : trustFrameworkClaimsMap.get(trustFramework)){
-                claims.put(claim,null);
+            Map<String, Object> verificationMap = new HashMap<>();
+            verificationMap.put("trust_framework", trustFramework);
+            verificationMap.put("max_age", claimsWithMaxAge.iterator().next().getValue());
+
+            Map<String, Object> claimsMap = new HashMap<>();
+            for (Map.Entry<String, Integer> claimWithMaxAge : claimsWithMaxAge) {
+                String claimName = claimWithMaxAge.getKey();
+                claimsMap.put(claimName, null); // Setting all claim values to null
             }
-            Map<String,Object> claimMap = new HashMap<>();
-            claimMap.put("verification",verification);
-            claimMap.put("claims",claims);
-            verifiedClaimsList.add(claimMap);
+            Map<String, Object> finalMap = new HashMap<>();
+            finalMap.put("verification", verificationMap);
+            finalMap.put("claims", claimsMap);
+
+            verifiedClaimsList.add(finalMap);
         }
         acceptedClaims.put("verified_claims",verifiedClaimsList);
         verifiedKycExchangeRequestDto.setAcceptedClaims(acceptedClaims);

@@ -3,6 +3,7 @@ package io.mosip.esignet.plugin.mock.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.mosip.esignet.api.dto.claim.FilterDateTime;
 import io.mosip.esignet.plugin.mock.dto.KycExchangeResponseDto;
 import io.mosip.esignet.api.dto.KycExchangeResult;
 import io.mosip.esignet.api.dto.VerifiedKycExchangeDto;
@@ -44,40 +45,35 @@ public class MockAuthenticationServiceTest {
         ReflectionTestUtils.setField(mockAuthenticationService, "objectMapper", objectMapper);
 
 
-        VerifiedKycExchangeDto dto = new VerifiedKycExchangeDto();
-        dto.setKycToken("kycToken");
-        dto.setAcceptedClaims(Arrays.asList("name", "gender"));
-        dto.setClaimsLocales(new String[]{"eng", "hin"});
+        VerifiedKycExchangeDto verifiedKycExchangeDto = new VerifiedKycExchangeDto();
+        verifiedKycExchangeDto.setKycToken("kycToken");
+        verifiedKycExchangeDto.setAcceptedClaims(Arrays.asList("name", "gender"));
+        verifiedKycExchangeDto.setClaimsLocales(new String[]{"eng", "hin"});
 
 
 
-        Map<String, List<VerificationFilter>> acceptedVerifiedClaims=new HashMap<>();
+        Map<String, VerificationFilter> acceptedVerifiedClaims=new HashMap<>();
 
-        List<VerificationFilter> verificationFilterList1 = new ArrayList<>();
-        VerificationFilter verificationFilter= new VerificationFilter();
-        FilterCriteria trustFramework = new FilterCriteria();
-        trustFramework.setValue("PWD");
-        verificationFilter.setTrust_framework(trustFramework);
+        VerificationFilter verificationFilterForName= new VerificationFilter();
+        FilterCriteria trustFrameWorkCriteria = new FilterCriteria();
+        trustFrameWorkCriteria.setValues(List.of("PWD", "Income-tax"));
+        FilterDateTime filterDateTime = new FilterDateTime();
+        filterDateTime.setMax_age(1000);
+        verificationFilterForName.setTime(filterDateTime);
+        verificationFilterForName.setTrust_framework(trustFrameWorkCriteria);
 
-        VerificationFilter verificationFilter2= new VerificationFilter();
-        FilterCriteria trustFramework2 = new FilterCriteria();
-        trustFramework2.setValue("PWD");
-        verificationFilter2.setTrust_framework(trustFramework2);
-        verificationFilterList1.add(verificationFilter2);
-        verificationFilterList1.add(verificationFilter2);
+        VerificationFilter verificationFilterForEmail= new VerificationFilter();
+        FilterCriteria trustFrameworkForEmail = new FilterCriteria();
+        trustFrameworkForEmail.setValues(List.of("PWD"));
+        filterDateTime.setMax_age(500);
+        verificationFilterForEmail.setTime(filterDateTime);
+        verificationFilterForEmail.setTrust_framework(trustFrameworkForEmail);
 
 
-        List<VerificationFilter> verificationFilterList3 = new ArrayList<>();
-        VerificationFilter verificationFilter3= new VerificationFilter();
-        FilterCriteria trustFramework3 = new FilterCriteria();
-        trustFramework3.setValue("Income-tax");
-        verificationFilter3.setTrust_framework(trustFramework3);
-        verificationFilterList3.add(verificationFilter3);
+        acceptedVerifiedClaims.put("name", verificationFilterForName);
+        acceptedVerifiedClaims.put("email", verificationFilterForEmail);
 
-        acceptedVerifiedClaims.put("name", verificationFilterList1);
-        acceptedVerifiedClaims.put("email", verificationFilterList3);
-
-        dto.setAcceptedVerifiedClaims(acceptedVerifiedClaims);
+        verifiedKycExchangeDto.setAcceptedVerifiedClaims(acceptedVerifiedClaims);
         KycExchangeResponseDto kycExchangeResponseDto = new KycExchangeResponseDto();
         kycExchangeResponseDto.setKyc("responseKyc");
         ResponseWrapper responseWrapper = new ResponseWrapper();
@@ -89,7 +85,7 @@ public class MockAuthenticationServiceTest {
                 })
         )).thenReturn(responseEntity);
 
-        KycExchangeResult kycExchangeResult = mockAuthenticationService.doVerifiedKycExchange("RP", "CL", dto);
+        KycExchangeResult kycExchangeResult = mockAuthenticationService.doVerifiedKycExchange("RP", "CL", verifiedKycExchangeDto);
         Assert.assertEquals(kycExchangeResponseDto.getKyc(), kycExchangeResult.getEncryptedKyc());
 
     }
@@ -101,33 +97,35 @@ public class MockAuthenticationServiceTest {
         objectMapper.registerModule(new JavaTimeModule());
         ReflectionTestUtils.setField(mockAuthenticationService, "objectMapper", objectMapper);
 
-        VerifiedKycExchangeDto dto = new VerifiedKycExchangeDto();
-        dto.setKycToken("kycToken");
-        dto.setAcceptedClaims(Arrays.asList("name", "gender"));
-        dto.setClaimsLocales(new String[]{"eng", "hin"});
+        VerifiedKycExchangeDto verifiedKycExchangeDto = new VerifiedKycExchangeDto();
+        verifiedKycExchangeDto.setKycToken("kycToken");
+        verifiedKycExchangeDto.setAcceptedClaims(Arrays.asList("name", "gender"));
+        verifiedKycExchangeDto.setClaimsLocales(new String[]{"eng", "hin"});
 
 
-        Map<String, List<VerificationFilter>> acceptedVerifiedClaims=new HashMap<>();
-        List<VerificationFilter> verificationFilters= new ArrayList<>();
-        VerificationFilter verificationFilter= new VerificationFilter();
-        FilterCriteria trustFramework = new FilterCriteria();
-        trustFramework.setValue("PWD");
-        verificationFilter.setTrust_framework(trustFramework);
 
-        verificationFilters.add(verificationFilter);
+        Map<String, VerificationFilter> acceptedVerifiedClaims=new HashMap<>();
 
-        acceptedVerifiedClaims.put("name", verificationFilters);
+        VerificationFilter verificationFilterForName= new VerificationFilter();
+        FilterCriteria trustFrameWorkCriteria = new FilterCriteria();
+        trustFrameWorkCriteria.setValues(List.of("PWD", "Income-tax"));
+        FilterDateTime filterDateTime = new FilterDateTime();
+        filterDateTime.setMax_age(1000);
+        verificationFilterForName.setTime(filterDateTime);
+        verificationFilterForName.setTrust_framework(trustFrameWorkCriteria);
 
-        List<VerificationFilter> verificationFilters2= new ArrayList<>();
-        VerificationFilter verificationFilter2= new VerificationFilter();
-        FilterCriteria trustFramework2 = new FilterCriteria();
-        trustFramework.setValue("Income-tax");
-        verificationFilter2.setTrust_framework(trustFramework2);
-        verificationFilters.add(verificationFilter2);
+        VerificationFilter verificationFilterForEmail= new VerificationFilter();
+        FilterCriteria trustFrameworkForEmail = new FilterCriteria();
+        trustFrameworkForEmail.setValues(List.of("PWD"));
+        filterDateTime.setMax_age(500);
+        verificationFilterForEmail.setTime(filterDateTime);
+        verificationFilterForEmail.setTrust_framework(trustFrameworkForEmail);
 
-        acceptedVerifiedClaims.put("email", verificationFilters2);
 
-        dto.setAcceptedVerifiedClaims(acceptedVerifiedClaims);
+        acceptedVerifiedClaims.put("name", verificationFilterForName);
+        acceptedVerifiedClaims.put("email", verificationFilterForEmail);
+
+        verifiedKycExchangeDto.setAcceptedVerifiedClaims(acceptedVerifiedClaims);
         ResponseWrapper responseWrapper = new ResponseWrapper();
         responseWrapper.setResponse(null);
         ResponseEntity<ResponseWrapper<KycExchangeResponseDto>> responseEntity = new ResponseEntity(responseWrapper, HttpStatus.OK);
@@ -137,7 +135,7 @@ public class MockAuthenticationServiceTest {
                 })
         )).thenReturn(responseEntity);
         try {
-            mockAuthenticationService.doVerifiedKycExchange("RP", "CL", dto);
+            mockAuthenticationService.doVerifiedKycExchange("RP", "CL", verifiedKycExchangeDto);
         } catch (KycExchangeException e) {
             Assert.assertEquals(e.getErrorCode(), ErrorConstants.DATA_EXCHANGE_FAILED);
         }
