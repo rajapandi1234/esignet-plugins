@@ -9,7 +9,6 @@ import lombok.Data;
 
 @Data
 public class LanguageValue {
-
-	private String language;
-	private String value;
+    private String language;
+    private String value;
 }

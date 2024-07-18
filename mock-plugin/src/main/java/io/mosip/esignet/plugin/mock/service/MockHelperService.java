@@ -11,7 +11,7 @@ import io.mosip.esignet.api.exception.KycAuthException;
 import io.mosip.esignet.api.exception.SendOtpException;
 import io.mosip.esignet.api.util.ErrorConstants;
 import io.mosip.esignet.plugin.mock.dto.KycAuthRequestDto;
-import io.mosip.esignet.plugin.mock.dto.KycAuthResponseDto;
+import io.mosip.esignet.plugin.mock.dto.KycAuthResponseDtoV2;
 import io.mosip.kernel.core.http.ResponseWrapper;
 import io.mosip.kernel.signature.dto.JWTSignatureRequestDto;
 import io.mosip.kernel.signature.dto.JWTSignatureResponseDto;
@@ -129,7 +129,7 @@ public class MockHelperService {
         }
     }
 
-    public KycAuthResult doKycAuthMock(String relyingPartyId, String clientId, KycAuthDto kycAuthDto)
+    public KycAuthResult doKycAuthMock(String relyingPartyId, String clientId, KycAuthDto kycAuthDto,boolean isClaimsMetadataRequired)
             throws KycAuthException {
         try {
             KycAuthRequestDto kycAuthRequestDto = new KycAuthRequestDto();
@@ -145,8 +145,8 @@ public class MockHelperService {
                     kycAuthRequestDto.setBiometrics(authChallenge.getChallenge());
                 } else if (Objects.equals(authChallenge.getAuthFactorType(), "WLA")) {
                     kycAuthRequestDto.setTokens(List.of(authChallenge.getChallenge()));
-                } else if(Objects.equals(authChallenge.getAuthFactorType(),"KBA")){
-                    kycAuthRequestDto.setKba(authChallenge.getChallenge());
+                } else if(Objects.equals(authChallenge.getAuthFactorType(),"KBI")){
+                    kycAuthRequestDto.setKbi(authChallenge.getChallenge());
                 }
                 else {
                     throw new KycAuthException("invalid_auth_challenge");
@@ -163,15 +163,14 @@ public class MockHelperService {
                     .post(UriComponentsBuilder.fromUriString(kycAuthUrl).pathSegment(relyingPartyId, clientId).build().toUri())
                     .contentType(MediaType.APPLICATION_JSON_UTF8)
                     .body(requestBody);
-            ResponseEntity<ResponseWrapper<KycAuthResponseDto>> responseEntity = restTemplate.exchange(requestEntity,
+            ResponseEntity<ResponseWrapper<KycAuthResponseDtoV2>> responseEntity = restTemplate.exchange(requestEntity,
                     new ParameterizedTypeReference<>() {
                     });
 
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
-                ResponseWrapper<KycAuthResponseDto> responseWrapper = responseEntity.getBody();
+                ResponseWrapper<KycAuthResponseDtoV2> responseWrapper = responseEntity.getBody();
                 if (responseWrapper.getResponse() != null && responseWrapper.getResponse().isAuthStatus() && responseWrapper.getResponse().getKycToken() != null) {
-                    return new KycAuthResult(responseEntity.getBody().getResponse().getKycToken(),
-                            responseEntity.getBody().getResponse().getPartnerSpecificUserToken());
+                    return buildKycAuthResult(responseWrapper.getResponse());
                 }
                 log.error("Error response received from IDA, Errors: {}", responseWrapper.getErrors());
                 throw new KycAuthException(CollectionUtils.isEmpty(responseWrapper.getErrors()) ?
@@ -185,6 +184,15 @@ public class MockHelperService {
                     clientId, e);
         }
         throw new KycAuthException(ErrorConstants.AUTH_FAILED);
+    }
+
+    private KycAuthResult buildKycAuthResult(KycAuthResponseDtoV2 response) {
+        KycAuthResult kycAuthResult = new KycAuthResult();
+        kycAuthResult.setKycToken(response.getKycToken());
+        kycAuthResult.setPartnerSpecificUserToken(response.getPartnerSpecificUserToken());
+        kycAuthResult.setClaimsMetadata(response.getClaimMetaData());
+
+        return kycAuthResult;
     }
 
     private boolean isKycAuthFormatSupported(String authFactorType, String kycAuthFormat) {

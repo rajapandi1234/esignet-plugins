@@ -9,6 +9,7 @@
 	<name>mosip-identity-plugin</name>
     <description>e-Signet Integration Implementation for MOSIP ID system</description>
 	<packaging>jar</packaging>
+	<url>https://github.com/mosip/esignet-plugins</url>
 
 	<licenses>
 		<license>

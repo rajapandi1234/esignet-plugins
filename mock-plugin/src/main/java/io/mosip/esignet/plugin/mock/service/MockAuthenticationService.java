@@ -6,14 +6,18 @@
 package io.mosip.esignet.plugin.mock.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.mosip.esignet.api.dto.claim.FilterCriteria;
+import io.mosip.esignet.api.dto.claim.FilterDateTime;
+import io.mosip.esignet.plugin.mock.dto.KycExchangeResponseDto;
 import io.mosip.esignet.api.dto.*;
+import io.mosip.esignet.api.dto.claim.VerificationFilter;
 import io.mosip.esignet.api.exception.KycAuthException;
 import io.mosip.esignet.api.exception.KycExchangeException;
 import io.mosip.esignet.api.exception.SendOtpException;
 import io.mosip.esignet.api.spi.Authenticator;
 import io.mosip.esignet.api.util.ErrorConstants;
 import io.mosip.esignet.plugin.mock.dto.KycExchangeRequestDto;
-import io.mosip.esignet.plugin.mock.dto.KycExchangeResponseDto;
+import io.mosip.esignet.plugin.mock.dto.VerifiedKycExchangeRequestDto;
 import io.mosip.kernel.core.http.ResponseWrapper;
 import io.mosip.kernel.core.util.StringUtils;
 import io.mosip.kernel.keymanagerservice.dto.AllCertificatesDataResponseDto;
@@ -74,7 +78,7 @@ public class MockAuthenticationService implements Authenticator {
 
         log.info("Started to build kyc-auth request with transactionId : {} && clientId : {}",
                 kycAuthDto.getTransactionId(), clientId);
-        return mockHelperService.doKycAuthMock(relyingPartyId, clientId, kycAuthDto);
+        return mockHelperService.doKycAuthMock(relyingPartyId, clientId, kycAuthDto,false);
     }
 
     @Override
@@ -150,11 +154,110 @@ public class MockAuthenticationService implements Authenticator {
 
     @Override
     public KycAuthResult doKycAuth(String relyingPartyId, String clientId, boolean claimsMetadataRequired, KycAuthDto kycAuthDto) throws KycAuthException {
-        return doKycAuth(relyingPartyId, clientId, kycAuthDto); //TODO
+        log.info("Started to build kyc-auth request with transactionId : {} && clientId : {}",
+                kycAuthDto.getTransactionId(), clientId);
+        return mockHelperService.doKycAuthMock(relyingPartyId, clientId, kycAuthDto,claimsMetadataRequired);
     }
 
     @Override
     public KycExchangeResult doVerifiedKycExchange(String relyingPartyId, String clientId, VerifiedKycExchangeDto kycExchangeDto) throws KycExchangeException {
-        return doKycExchange(relyingPartyId, clientId, kycExchangeDto); //TODO
+        log.info("Started to build kyc-exchange request with transactionId : {} && clientId : {}",
+                kycExchangeDto.getTransactionId(), clientId);
+        try {
+            VerifiedKycExchangeRequestDto verifiedKycExchangeRequestDto = buildVerifiedKycExchangeRequestDto(kycExchangeDto);
+
+            //set signature header, body and invoke kyc exchange endpoint
+            String requestBody = objectMapper.writeValueAsString(verifiedKycExchangeRequestDto);
+            RequestEntity requestEntity = RequestEntity
+                    .post(UriComponentsBuilder.fromUriString(kycExchangeUrl).pathSegment(relyingPartyId,
+                            clientId).build().toUri())
+                    .contentType(MediaType.APPLICATION_JSON_UTF8)
+                    .body(requestBody);
+            ResponseEntity<ResponseWrapper<KycExchangeResponseDto>> responseEntity = restTemplate.exchange(requestEntity,
+                    new ParameterizedTypeReference<>() {
+                    });
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                ResponseWrapper<KycExchangeResponseDto> responseWrapper = responseEntity.getBody();
+                if (responseWrapper.getResponse() != null && responseWrapper.getResponse().getKyc() != null) {
+                    return new KycExchangeResult(responseWrapper.getResponse().getKyc());
+                }
+                log.error("Errors in response received from IDA Kyc Exchange: {}", responseWrapper.getErrors());
+                throw new KycExchangeException(CollectionUtils.isEmpty(responseWrapper.getErrors()) ?
+                        ErrorConstants.DATA_EXCHANGE_FAILED : responseWrapper.getErrors().get(0).getErrorCode());
+            }
+
+            log.error("Error response received from IDA (Kyc-exchange) with status : {}", responseEntity.getStatusCode());
+        } catch (KycExchangeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IDA Kyc-exchange failed with clientId : {}", clientId, e);
+        }
+        throw new KycExchangeException("mock-ida-005", "Failed to build kyc data");
+    }
+
+    private VerifiedKycExchangeRequestDto buildVerifiedKycExchangeRequestDto(VerifiedKycExchangeDto verifiedKycExchangeDto){
+        VerifiedKycExchangeRequestDto verifiedKycExchangeRequestDto = new VerifiedKycExchangeRequestDto();
+        verifiedKycExchangeRequestDto.setRequestDateTime(MockHelperService.getUTCDateTime());
+        verifiedKycExchangeRequestDto.setTransactionId(verifiedKycExchangeDto.getTransactionId());
+        verifiedKycExchangeRequestDto.setKycToken(verifiedKycExchangeDto.getKycToken());
+        verifiedKycExchangeRequestDto.setIndividualId(verifiedKycExchangeDto.getIndividualId());
+        verifiedKycExchangeRequestDto.setClaimLocales(Arrays.asList(verifiedKycExchangeDto.getClaimsLocales()));
+
+        Map<String, Object> acceptedClaims = new HashMap<>();
+        //setting essential unverified claims
+        for(String claim : verifiedKycExchangeDto.getAcceptedClaims()) {
+            Map<String,Boolean> essential = new HashMap<>();
+            essential.put("essential",true);
+            acceptedClaims.put(claim,essential);
+        }
+
+        //setting essential verified claims
+        Map<String,VerificationFilter> acceptedVerifiedClaims = verifiedKycExchangeDto.getAcceptedVerifiedClaims();
+        //Group claims by trust framework and capture time information
+        Map<String, List<Map.Entry<String, Integer>>> trustFrameWorkMap = new HashMap<>();
+        for (Map.Entry<String, VerificationFilter> entry : acceptedVerifiedClaims.entrySet()) {
+            String claimName = entry.getKey();
+            FilterCriteria trustFrameworkCriteria = entry.getValue().getTrust_framework();
+            FilterDateTime filterDateTime = entry.getValue().getTime();
+
+            int maxAge = filterDateTime != null ? filterDateTime.getMax_age() : 999; // Default value for maxAge if not set
+
+            if(!StringUtils.isEmpty(trustFrameworkCriteria.getValue())){
+                trustFrameWorkMap.computeIfAbsent(trustFrameworkCriteria.getValue(), k -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
+            } else if (trustFrameworkCriteria.getValues()!=null && !trustFrameworkCriteria.getValues().isEmpty()) {
+                for (String trustFramework : trustFrameworkCriteria.getValues()) {
+                    trustFrameWorkMap.computeIfAbsent(trustFramework, list -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
+                }
+            } else {
+                // Handle null trust_framework separately
+                trustFrameWorkMap.computeIfAbsent(null, list -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(claimName, maxAge));
+            }
+        }
+        // Constructing the verified_claims list
+        List<Map<String, Object>> verifiedClaimsList = new ArrayList<>();
+        for (Map.Entry<String, List<Map.Entry<String, Integer>>> group : trustFrameWorkMap.entrySet()) {
+            String trustFramework = group.getKey();
+            List<Map.Entry<String, Integer>> claimsWithMaxAge = group.getValue();
+
+            Map<String, Object> verificationMap = new HashMap<>();
+            verificationMap.put("trust_framework", trustFramework);
+            verificationMap.put("max_age", claimsWithMaxAge.iterator().next().getValue());
+
+            Map<String, Object> claimsMap = new HashMap<>();
+            for (Map.Entry<String, Integer> claimWithMaxAge : claimsWithMaxAge) {
+                String claimName = claimWithMaxAge.getKey();
+                claimsMap.put(claimName, null); // Setting all claim values to null
+            }
+            Map<String, Object> finalMap = new HashMap<>();
+            finalMap.put("verification", verificationMap);
+            finalMap.put("claims", claimsMap);
+
+            verifiedClaimsList.add(finalMap);
+        }
+        acceptedClaims.put("verified_claims",verifiedClaimsList);
+        verifiedKycExchangeRequestDto.setAcceptedClaims(acceptedClaims);
+
+        return verifiedKycExchangeRequestDto;
     }
 }
