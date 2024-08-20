@@ -51,6 +51,7 @@ import static io.mosip.signup.api.util.ErrorConstants.SERVER_UNREACHABLE;
 public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
 
     private static final String ID_SCHEMA_VERSION_FIELD_ID = "IDSchemaVersion";
+    private static final String UIN = "UIN";
     private static final String SELECTED_HANDLES_FIELD_ID = "selectedHandles";
     private static final String UTC_DATETIME_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     private final Map<Double, SchemaResponse> schemaMap = new HashMap<>();
@@ -126,9 +127,10 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
             Iterator itr = requiredFieldIds.iterator();
             while (itr.hasNext()) {
                 String fieldName = ((TextNode)itr.next()).textValue();
-                if (inputJson.get(fieldName) == null) {
+                if (fieldName.isBlank() || inputJson.get(fieldName) == null ) {
                     log.error("Null value found in the required field of {}, required: {}", fieldName, requiredFieldIds);
-                    throw new InvalidProfileException(fieldName.toLowerCase().concat("_required")); //TODO we should add exception message
+                    throw new InvalidProfileException("invalid_".concat(fieldName.toLowerCase())); 
+                    //TODO we should add exception message
                 }
             }
         }
@@ -143,7 +145,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
     public ProfileResult createProfile(String requestId, ProfileDto profileDto) throws ProfileException {
         JsonNode inputJson = profileDto.getIdentity();
         //set UIN
-        ((ObjectNode) inputJson).set("UIN", objectMapper.valueToTree(getUniqueIdentifier()));
+        ((ObjectNode) inputJson).set(UIN, objectMapper.valueToTree(getUniqueIdentifier()));
         //Build identity request
         IdentityRequest identityRequest = buildIdentityRequest(inputJson, false);
         identityRequest.setRegistrationId(requestId);
@@ -175,7 +177,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
         JsonNode inputJson = profileDto.getIdentity();
         //set UIN
         //((ObjectNode) inputJson).set("UIN", objectMapper.valueToTree(profileDto.getUniqueUserId()));
-        ((ObjectNode) inputJson).set("UIN", objectMapper.valueToTree(profileDto.getIndividualId()));
+        ((ObjectNode) inputJson).set(UIN, objectMapper.valueToTree(profileDto.getIndividualId()));
         //Build identity request
         IdentityRequest identityRequest = buildIdentityRequest(inputJson, true);
         identityRequest.setRegistrationId(requestId);
@@ -206,8 +208,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
             ResponseWrapper<IdentityResponse> responseWrapper = request(endpoint, HttpMethod.GET, null,
                     new ParameterizedTypeReference<ResponseWrapper<IdentityResponse>>() {});
             ProfileDto profileDto = new ProfileDto();
-            profileDto.setIndividualId(responseWrapper.getResponse().getIdentity().get("UIN").textValue());
-            //profileDto.setUniqueUserId(responseWrapper.getResponse().getIdentity().get("UIN").textValue());
+            profileDto.setIndividualId(responseWrapper.getResponse().getIdentity().get(UIN).textValue());
             profileDto.setIdentity(responseWrapper.getResponse().getIdentity());
             profileDto.setActive(responseWrapper.getResponse().getStatus().equals("ACTIVATED"));
             return profileDto;
@@ -333,7 +334,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
             }
         }
         log.error("Get registration status failed with response {}", applicationId, responseWrapper);
-        return ProfileCreateUpdateStatus.PENDING;
+        throw new ProfileException( responseWrapper.getErrors().get(0).getErrorCode() );
     }
 
     private <T> ResponseWrapper<T> request(String url, HttpMethod method, Object request,
@@ -403,7 +404,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
 
     private void validateValue(String keyName, SchemaFieldValidator validator, String value) {
         if(value == null || value.isEmpty())
-            throw new InvalidProfileException(ErrorConstants.INVALID_INPUT);
+            throw new InvalidProfileException("invalid_".concat(keyName.toLowerCase()));
 
         if( validator != null && "regex".equalsIgnoreCase(validator.getType()) && !value.matches(validator.getValidator()) ) {
             log.error("Regex of {} does not match value of {}", validator.getValidator(), value);
@@ -437,7 +438,7 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
                     SimpleType[] values = objectMapper.convertValue(entry.getValue(), SimpleType[].class);
                     Optional<SimpleType> mandatoryLangValue = Arrays.stream(values).filter( v -> mandatoryLanguages.contains(v.getLanguage())).findFirst();
                     if(mandatoryLangValue.isEmpty())
-                        throw new InvalidProfileException(ErrorConstants.MANDATORY_LANGUAGE_MISSING);
+                        throw new InvalidProfileException(ErrorConstants.INVALID_LANGUAGE);
 
                     for(SimpleType value : values) {
                         validateLanguage(value.getLanguage());
@@ -457,6 +458,6 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
 
     private void validateLanguage(String language) {
         if(!mandatoryLanguages.contains(language) && (optionalLanguages != null && !optionalLanguages.contains(language)))
-            throw new InvalidProfileException("invalid_language");
+            throw new InvalidProfileException(ErrorConstants.INVALID_LANGUAGE);
     }
 }
