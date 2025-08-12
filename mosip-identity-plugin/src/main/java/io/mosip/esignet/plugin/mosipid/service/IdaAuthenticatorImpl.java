@@ -105,49 +105,7 @@ public class IdaAuthenticatorImpl implements Authenticator {
     @Override
     public KycAuthResult doKycAuth(String relyingPartyId, String clientId, KycAuthDto kycAuthDto)
             throws KycAuthException {
-        log.info("Started to build kyc-auth request with transactionId : {} && clientId : {}",
-                kycAuthDto.getTransactionId(), clientId);
-        try {
-            IdaKycAuthRequest idaKycAuthRequest = new IdaKycAuthRequest();
-            idaKycAuthRequest.setId(kycAuthId);
-            idaKycAuthRequest.setVersion(idaVersion);
-            idaKycAuthRequest.setRequestTime(HelperService.getUTCDateTime());
-            idaKycAuthRequest.setDomainUri(idaDomainUri);
-            idaKycAuthRequest.setEnv(idaEnv);
-            idaKycAuthRequest.setConsentObtained(true);
-            idaKycAuthRequest.setIndividualId(kycAuthDto.getIndividualId());
-            idaKycAuthRequest.setTransactionID(kycAuthDto.getTransactionId());
-            helperService.setAuthRequest(kycAuthDto.getChallengeList(), idaKycAuthRequest);
-
-            //set signature header, body and invoke kyc auth endpoint
-            String requestBody = objectMapper.writeValueAsString(idaKycAuthRequest);
-            RequestEntity requestEntity = RequestEntity
-                    .post(UriComponentsBuilder.fromUriString(kycAuthUrl).pathSegment(relyingPartyId, clientId).build().toUri())
-                    .contentType(MediaType.APPLICATION_JSON_UTF8)
-                    .header(SIGNATURE_HEADER_NAME, helperService.getRequestSignature(requestBody))
-                    .header(AUTHORIZATION_HEADER_NAME, AUTHORIZATION_HEADER_NAME)
-                    .body(requestBody);
-            ResponseEntity<IdaResponseWrapper<IdaKycAuthResponse>> responseEntity = restTemplate.exchange(requestEntity,
-                    new ParameterizedTypeReference<IdaResponseWrapper<IdaKycAuthResponse>>() {});
-
-            if(responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
-                IdaResponseWrapper<IdaKycAuthResponse> responseWrapper = responseEntity.getBody();
-                if(responseWrapper!=null && responseWrapper.getResponse() != null && responseWrapper.getResponse().isKycStatus() && responseWrapper.getResponse().getKycToken() != null) {
-                    return new KycAuthResult(responseWrapper.getResponse().getKycToken(),
-                            responseWrapper.getResponse().getAuthToken());
-                }
-                log.error("Error response received from IDA KycStatus : {} && Errors: {}",
-                        responseWrapper.getResponse().isKycStatus(), responseWrapper.getErrors());
-                throw new KycAuthException(CollectionUtils.isEmpty(responseWrapper.getErrors()) ?
-                         ErrorConstants.AUTH_FAILED : responseWrapper.getErrors().get(0).getErrorCode());
-            }
-
-            log.error("Error response received from IDA (Kyc-auth) with status : {}", responseEntity.getStatusCode());
-        } catch (KycAuthException e) { throw e; } catch (Exception e) {
-            log.error("KYC-auth failed with transactionId : {} && clientId : {}", kycAuthDto.getTransactionId(),
-                    clientId, e);
-        }
-        throw new KycAuthException(ErrorConstants.AUTH_FAILED);
+        return doKycAuthentication(relyingPartyId, clientId, kycAuthDto, false);
     }
 
     @Override
@@ -289,8 +247,9 @@ public class IdaAuthenticatorImpl implements Authenticator {
     }
 
     @Override
-    public KycAuthResult doKycAuth(String relyingPartyId, String clientId, boolean claimsMetadataRequired, KycAuthDto kycAuthDto) throws KycAuthException {
-        return doKycAuth(relyingPartyId, clientId, kycAuthDto); //TODO
+    public KycAuthResult doKycAuth(String relyingPartyId, String clientId, boolean claimsMetadataRequired,
+                                   KycAuthDto kycAuthDto) throws KycAuthException {
+        return doKycAuthentication(relyingPartyId, clientId, kycAuthDto, claimsMetadataRequired);
     }
 
     /**
