@@ -2,6 +2,8 @@ package io.mosip.signup.plugin.mosipid.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.mosip.signup.api.dto.ProfileDto;
 import io.mosip.signup.api.dto.ProfileResult;
@@ -58,9 +60,12 @@ public class IdrepoProfileRegistryPluginImplTest {
         ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "identityEndpoint","http://localhost:8080/identity/v1/identity/");
         ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "generateHashEndpoint","http://localhost:8080/identity/v1/identity/genereateHash/");
         ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "getIdentityEndpoint","http://localhost:8080/identity/v1/identity/");
-        ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "mandatoryLanguages",List.of("eng"));
         ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "getIdentityEndpointMethod", "POST");
         ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "getStatusEndpoint","http://localhost:8080/identity/v1/identity/");
+        ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "dynamicFieldsBaseUrl","http://mock/api/dynamicFields");
+        ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "docTypesAndCategoryBaseUrl", "http://mock/api/docTypes");
+        ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "mandatoryLanguages", List.of("en"));
+        ReflectionTestUtils.setField(idrepoProfileRegistryPlugin, "optionalLanguages", List.of("fr","ar"));
     }
 
     @Test
@@ -99,7 +104,7 @@ public class IdrepoProfileRegistryPluginImplTest {
         Map<String, Object> identityData = new HashMap<>();
         SimpleType [] simpleTypesArray=new SimpleType[1];
         SimpleType simpleType=new SimpleType();
-        simpleType.setLanguage("eng");
+        simpleType.setLanguage("en");
         simpleType.setValue("John Doe");
         simpleTypesArray[0]=simpleType;
         identityData.put("phone","+91841987567");
@@ -533,4 +538,140 @@ public class IdrepoProfileRegistryPluginImplTest {
         identityData.put("phone","+91841987567");
         return objectMapper.valueToTree(identityData);
     }
+
+    @Test
+    public void generateAllowedValues_withValidDetails_thenPass() {
+        ObjectNode dynamicItem = objectMapper.createObjectNode();
+        dynamicItem.put("isActive", true);
+        dynamicItem.put("name", "fieldName");
+        dynamicItem.put("langCode", "eng");
+
+        ArrayNode fieldValArray = objectMapper.createArrayNode();
+        ObjectNode fieldVal = objectMapper.createObjectNode();
+        fieldVal.put("code", "code1");
+        fieldVal.put("value", "value1");
+        fieldValArray.add(fieldVal);
+        dynamicItem.set("fieldVal", fieldValArray);
+        ArrayNode dynamicDataArray = objectMapper.createArrayNode();
+        dynamicDataArray.add(dynamicItem);
+
+        ObjectNode dynamicResponseNode = objectMapper.createObjectNode();
+        dynamicResponseNode.put("totalPages", 1);
+        dynamicResponseNode.put("totalItems", 1);
+        dynamicResponseNode.set("data", dynamicDataArray);
+        ObjectNode dynamicWrapper = objectMapper.createObjectNode();
+        dynamicWrapper.set("response", dynamicResponseNode);
+
+        ResponseEntity<JsonNode> dynamicEntity = new ResponseEntity<>(dynamicWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("dynamic"), Mockito.eq(JsonNode.class))).thenReturn(dynamicEntity);
+
+        ObjectNode categoryItem = objectMapper.createObjectNode();
+        categoryItem.put("isActive", true);
+        categoryItem.put("code", "cat1");
+        categoryItem.put("langCode", "eng");
+
+        ArrayNode docTypesArray = objectMapper.createArrayNode();
+        ObjectNode docType = objectMapper.createObjectNode();
+        docType.put("code", "doc1");
+        docType.put("name", "Document Name");
+        docTypesArray.add(docType);
+
+        categoryItem.set("documentTypes", docTypesArray);
+
+        ArrayNode docCategoriesArray = objectMapper.createArrayNode();
+        docCategoriesArray.add(categoryItem);
+        ObjectNode docResponseNode = objectMapper.createObjectNode();
+        docResponseNode.set("documentCategories", docCategoriesArray);
+        ObjectNode docWrapper = objectMapper.createObjectNode();
+        docWrapper.set("response", docResponseNode);
+
+        ResponseEntity<JsonNode> docEntity = new ResponseEntity<>(docWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("docTypes"), Mockito.eq(JsonNode.class))).thenReturn(docEntity);
+
+        JsonNode result = idrepoProfileRegistryPlugin.generateAllowedValues();
+
+        Assert.assertNotNull(result);
+        Assert.assertTrue(result.has("fieldName"));
+        Assert.assertTrue(result.get("fieldName").has("code1"));
+        Assert.assertEquals("value1", result.get("fieldName").get("code1").get("eng").asText());
+
+        Assert.assertTrue(result.has("cat1"));
+        Assert.assertTrue(result.get("cat1").has("doc1"));
+        Assert.assertEquals("Document Name", result.get("cat1").get("doc1").get("eng").asText());
+    }
+
+    @Test
+    public void generateAllowedValues_withInactiveDynamicField_thenFail() {
+        ObjectNode dynamicItem = objectMapper.createObjectNode();
+        dynamicItem.put("isActive", false);
+
+        ArrayNode dynamicDataArray = objectMapper.createArrayNode();
+        dynamicDataArray.add(dynamicItem);
+        ObjectNode dynamicResponseNode = objectMapper.createObjectNode();
+        dynamicResponseNode.put("totalPages", 1);
+        dynamicResponseNode.put("totalItems", 1);
+        dynamicResponseNode.set("data", dynamicDataArray);
+        ObjectNode dynamicWrapper = objectMapper.createObjectNode();
+        dynamicWrapper.set("response", dynamicResponseNode);
+
+        ResponseEntity<JsonNode> dynamicEntity = new ResponseEntity<>(dynamicWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("dynamic"), Mockito.eq(JsonNode.class))).thenReturn(dynamicEntity);
+        ObjectNode docWrapper = objectMapper.createObjectNode();
+        docWrapper.set("response", objectMapper.createObjectNode().set("documentCategories", objectMapper.createArrayNode()));
+        ResponseEntity<JsonNode> docEntity = new ResponseEntity<>(docWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("docTypes"), Mockito.eq(JsonNode.class))).thenReturn(docEntity);
+
+        JsonNode result = idrepoProfileRegistryPlugin.generateAllowedValues();
+        Assert.assertNotNull(result);
+        Assert.assertEquals(0, result.size());
+    }
+
+    @Test
+    public void generateAllowedValues_withInactiveDocumentTypesAndCategories_thenFail() {
+        ObjectNode dynamicResponseNode = objectMapper.createObjectNode();
+        dynamicResponseNode.put("totalPages", 1);
+        dynamicResponseNode.put("totalItems", 0);
+        dynamicResponseNode.set("data", objectMapper.createArrayNode());
+
+        ObjectNode dynamicWrapper = objectMapper.createObjectNode();
+        dynamicWrapper.set("response", dynamicResponseNode);
+
+        ResponseEntity<JsonNode> dynamicEntity = new ResponseEntity<>(dynamicWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("dynamic"), Mockito.eq(JsonNode.class))).thenReturn(dynamicEntity);
+
+        ObjectNode inactiveCategory = objectMapper.createObjectNode();
+        inactiveCategory.put("isActive", false); // should be skipped
+        inactiveCategory.put("code", "cat1");
+        inactiveCategory.put("langCode", "eng");
+
+        ObjectNode activeCategoryWithInactiveDocType = objectMapper.createObjectNode();
+        activeCategoryWithInactiveDocType.put("isActive", false);
+        activeCategoryWithInactiveDocType.put("code", "cat2");
+        activeCategoryWithInactiveDocType.put("langCode", "eng");
+
+        ArrayNode docTypesArray = objectMapper.createArrayNode();
+        ObjectNode inactiveDocType = objectMapper.createObjectNode();
+        inactiveDocType.put("code", "doc1");
+        docTypesArray.add(inactiveDocType);
+        activeCategoryWithInactiveDocType.set("documentTypes", docTypesArray);
+
+        ArrayNode docCategoriesArray = objectMapper.createArrayNode();
+        docCategoriesArray.add(inactiveCategory);
+        docCategoriesArray.add(activeCategoryWithInactiveDocType);
+
+        ObjectNode docResponseNode = objectMapper.createObjectNode();
+        docResponseNode.set("documentCategories", docCategoriesArray);
+
+        ObjectNode docWrapper = objectMapper.createObjectNode();
+        docWrapper.set("response", docResponseNode);
+
+        ResponseEntity<JsonNode> docEntity = new ResponseEntity<>(docWrapper, HttpStatus.OK);
+        Mockito.when(restTemplate.getForEntity(Mockito.contains("docTypes"), Mockito.eq(JsonNode.class))).thenReturn(docEntity);
+
+        JsonNode result = idrepoProfileRegistryPlugin.generateAllowedValues();
+
+        Assert.assertNotNull(result);
+        Assert.assertEquals(0, result.size());
+    }
+
 }
