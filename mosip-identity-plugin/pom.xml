@@ -374,9 +374,9 @@
 				<artifactId>maven-assembly-plugin</artifactId>
 				<version>3.7.1</version>
 				<configuration>
-					<descriptorRefs>
-						<descriptorRef>jar-with-dependencies</descriptorRef>
-					</descriptorRefs>
+					<descriptors>
+						<descriptor>src/assembly.xml</descriptor>
+					</descriptors>
 					<appendAssemblyId>false</appendAssemblyId>
 				</configuration>
 				<executions>
