@@ -170,30 +170,9 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
     private String docTypesAndCategoryBaseUrl;
 
 
-    private JsonNode uiSpec;
-
     @PostConstruct
     public void init() {
-        String responseJson = request(uiSpecUrl, HttpMethod.GET, null, new ParameterizedTypeReference<ResponseWrapper<JsonNode>>() {
-        })
-                .getResponse()
-                .toString();
-        Object schema = JsonPath.read(responseJson, schemaJsonpath);
-        Object errors = readErrors(responseJson, errorsJsonpath);
-        ObjectNode i18nValues = readI18nValues(responseJson);
-        JsonNode allowedValues = readAllowedValues(responseJson);
-        Object maxUploadFileSize = JsonPath.read(responseJson, maxUploadFileSizeJsonpath);
 
-        this.uiSpec = objectMapper.valueToTree(
-                Map.ofEntries(
-                        Map.entry("schema", schema),
-                        Map.entry("errors", errors),
-                        Map.entry("i18nValues", i18nValues),
-                        Map.entry("language", Map.of("mandatory", mandatoryLanguages, "optional", optionalLanguages)),
-                        Map.entry("allowedValues", allowedValues),
-                        Map.entry("maxUploadFileSize", maxUploadFileSize)
-                )
-        );
         IIORegistry registry = IIORegistry.getDefaultInstance();
         registry.registerServiceProvider(new J2KImageReaderSpi());
     }
@@ -247,6 +226,22 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
             errors = errorsFromConfig;
         }
         return errors;
+    }
+
+    /**
+     * Reads max upload file size from the UI-spec
+     * @param responseJson the response json from ${mosip.signup.mosipid.get-ui-spec.endpoint}
+     * @return maxUploadFileSize
+     */
+    private Object readMaxUploadFileSize(String responseJson) {
+        Object maxUploadFileSize;
+        try {
+            maxUploadFileSize = JsonPath.read(responseJson, maxUploadFileSizeJsonpath);
+        } catch (PathNotFoundException e) {
+            log.error("maxUploadFileSize not found in schema, setting to default");
+            maxUploadFileSize = 5242880;
+        }
+        return maxUploadFileSize;
     }
 
     /**
@@ -539,7 +534,26 @@ public class IdrepoProfileRegistryPluginImpl implements ProfileRegistryPlugin {
 
     @Override
     public JsonNode getUISpecification() {
-        return this.uiSpec;
+        String responseJson = request(uiSpecUrl, HttpMethod.GET, null, new ParameterizedTypeReference<ResponseWrapper<JsonNode>>() {
+        })
+                .getResponse()
+                .toString();
+        Object schema = JsonPath.read(responseJson, schemaJsonpath);
+        Object errors = readErrors(responseJson, errorsJsonpath);
+        ObjectNode i18nValues = readI18nValues(responseJson);
+        JsonNode allowedValues = readAllowedValues(responseJson);
+        Object maxUploadFileSize = readMaxUploadFileSize(responseJson);
+
+        return objectMapper.valueToTree(
+                Map.ofEntries(
+                        Map.entry("schema", schema),
+                        Map.entry("errors", errors),
+                        Map.entry("i18nValues", i18nValues),
+                        Map.entry("language", Map.of("mandatory", mandatoryLanguages, "optional", optionalLanguages)),
+                        Map.entry("allowedValues", allowedValues),
+                        Map.entry("maxUploadFileSize", maxUploadFileSize)
+                )
+        );
     }
 
     private SchemaResponse getSchemaJson(double version) throws ProfileException {
